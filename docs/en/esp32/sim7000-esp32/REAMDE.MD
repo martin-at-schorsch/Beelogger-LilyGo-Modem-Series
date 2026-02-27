@@ -53,9 +53,9 @@
 2. Install [Arduino IDE](https://www.arduino.cc/en/software)
 3. Install [Arduino ESP32](https://docs.espressif.com/projects/arduino-esp32/en/latest/)
 4. Copy all folders in the `lib` directory to the `Sketchbook location` directory. How to find the location of your own libraries, [please see here](https://support.arduino.cc/hc/en-us/articles/4415103213714-Find-sketches-libraries-board-cores-and-other-files-on-your-computer)
-    * Windows: `C:\Users\{username}\Documents\Arduino`
-    * macOS: `/Users/{username}/Documents/Arduino`
-    * Linux: `/home/{username}/Arduino`
+    * Windows: `C:\Users\%USERNAME%\Documents\Arduino\libraries`
+    * MacOS: `$HOME/Documents/Arduino/libraries`
+    * Linux: `$HOME/Arduino/libraries`
 5. Open the corresponding example
     * Open the downloaded `LilyGo-Modem-Series`
     * Open `examples`
