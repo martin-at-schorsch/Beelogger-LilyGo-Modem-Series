@@ -107,6 +107,12 @@
 > IO0/IO3/IO45/IO46 are Strapping Pins; their use is limited. Please see the **Strapping Pins** section of the [online documentation](https://documentation.espressif.com/esp32-s3_datasheet_en.pdf) for details.
 >
 
+### Modem Pins
+
+| Name                 | GPIO NUM | Enable level | AT Command                     |
+| -------------------- | -------- | ------------ | ------------------------------ |
+| GPS Ant Power Enable | 4        | High         | `AT+CGDRT=1,1 ; AT+CGSETV=1,1` |
+
 ### ⚡ Electrical parameters
 
 | Features                        | Details |
