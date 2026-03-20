@@ -5,4 +5,5 @@ script
 build
 extras
 images/product/jpeg/*
+config.local.h
 
