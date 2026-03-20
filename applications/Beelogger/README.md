@@ -2,7 +2,7 @@
 
 This application transforms a LilyGo T-SIM A7670 / T-Call / T-SIM S3 module into a professional **Beelogger** (Beehive Monitoring System). It measures weight, temperature, humidity, atmospheric pressure, and battery/solar voltages, transmitting them via LTE/GPRS to a web backend.
 
-This is a implementation of the original [Beelogger project](https://beelogger.de) for the LilyGo Modem Series.
+This is a implementation [Beelogger project](https://beelogger.de) for the LilyGo Modem Series.
 
 ## 🚀 Features
 - **Multi-Board Support**: Automatically configures pins for A7670, SIM7670G, SIM7000G, and many more LilyGo boards.
@@ -15,11 +15,11 @@ This is a implementation of the original [Beelogger project](https://beelogger.d
 - **Fail-Safe Connection**: Configurable LTE/GSM preferences and robust connection logic.
 
 ## 🛠️ Hardware Requirements
-- **Board**: Tested on LilyGo T-SIM A7670E.
+- **Board**: Tested on LilyGo T-SIM A7670E V1.2.
 - **Sensors**: 
   - HX711 Load Cell Amplifier
   - BME280 I2C Sensor
-- **Power**: LiPo Battery (3.7V) and optional Solar Panel.
+- **Power**: LiPo Battery (3.7V) and Solar Panel.
 
 ## ⚙️ Configuration
 The configuration is split into two parts for security:
