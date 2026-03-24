@@ -1,36 +1,44 @@
-# Beelogger Pro for LilyGo Modem Series
+# Beelogger ESP32 - LilyGo Modem Series
 
-This application transforms a LilyGo T-SIM A7670 / T-Call / T-SIM S3 module into a professional **Beelogger** (Beehive Monitoring System). It measures weight, temperature, humidity, atmospheric pressure, and battery/solar voltages, transmitting them via LTE/GPRS to a web backend.
+Professional Beehive Monitoring System based on ESP32 and LilyGo T-SIM/T-Call Modem series.
 
-This is a implementation [Beelogger project](https://beelogger.de) for the LilyGo Modem Series.
+## Features
+- **Multi-Board Support**: Automatically detects LilyGo modem boards via `utilities.h`.
+- **Sensors**: Supports HX711 Load Cells (Weight) and BME280 (Temp/Hum/Pres).
+- **Cellular Data**: Transmits data to a Beelogger-compatible backend via LTE/GSM.
+- **Robust Test Server**: Multi-threaded Python server included for local testing and debugging with detailed access logging.
+- **Work-on-Hive Mode**: Special maintenance mode triggered by the **BOOT button (GPIO0)**.
+  - Activates Local Web Interface for 5 minutes.
+  - Disables Deep Sleep during maintenance.
+- **OTA System**:
+  OTA via LTE/GSM automatic, manual or via Work-on-Hive Mode Website. 
+  - **Automated Background OTA**: Checks every 24h for updates during safe windows (daylight/battery > 3.8V).
+  - **Manual OTA**: Cloud or local firmware upload via the Web Interface.
+- **Power Management**: Advanced deep sleep logic with battery and solar monitoring.
 
-## 🚀 Features
-- **Multi-Board Support**: Automatically configures pins for A7670, SIM7670G, SIM7000G, and many more LilyGo boards.
-- **Sensor Integration**:
-  - **HX711**: Precision weight measurement for the beehive.
-  - **BME280**: Temperature, Humidity, and Pressure.
-  - **Voltage Monitoring**: Tracks both Battery and Solar panel levels if supported by the board.
-- **Efficient Power Management**: Uses ESP32 Deep Sleep and modem power-down cycles for long-term battery operation.
-- **Web Dashboard**: Local WiFi-based debug interface for real-time monitoring and scale calibration.
-- **Fail-Safe Connection**: Configurable LTE/GSM preferences and robust connection logic.
+## Configuration
+Modify `config.h` and create a `config.local.h` for your credentials.
 
-## 🛠️ Hardware Requirements
-- **Board**: Tested on LilyGo T-SIM A7670E V1.2.
-- **Sensors**: 
-  - HX711 Load Cell Amplifier
-  - BME280 I2C Sensor
-- **Power**: LiPo Battery (3.7V) and Solar Panel.
+### Automated background Updates
+The system checks every 24 hours for a new version. To ensure reliability:
+- **Battery Check**: Updates only start if battery > 3.8V.
+- **Daylight Check**: Uses solar voltage or a preferred time window (e.g. 10:00 - 14:00) to ensure daylight.
 
-## ⚙️ Configuration
-The configuration is split into two parts for security:
-1. **`config.h`**: Contains general application logic and default placeholders.
-2. **`config.local.h`**: (Ignored by git) Put your private WiFi and Backend credentials here. 
-   - *Tip: Rename a copy of the provided template or let the code create one.*
+## Changelog
+### v1.1.0
+- **Firmware**: Added automated 24h background OTA checks with battery/solar safety guards.
+- **Firmware**: Implemented time-window detection via server-provided Unix timestamps.
+- **Server**: Robustified `beelogger_test_server.py` with multi-threading to prevent freezes from bot scans.
+- **Server**: Added `beelogger_access.log` to track IPs and request outcomes.
+- **UI**: Added "Maintenance Active" banner and improved layout.
+- **Feature**: Added "Stay Awake" toggle in Web UI.
+- **Fix**: Improved modem power-cycle logic on boot.
 
-## 📐 Calibration
-You can calibrate the scale via:
-1. **Serial Console**: Set `ENABLE_CALIBRATION_MODE` to `true` in `config.h`.
-2. **Web UI**: Access the local IP of the ESP32 while it's awake and use the "Scale Calibration" section.
+### v1.0.0
+- **Initial Release**: Basic Beelogger functionality for ESP32 and LilyGo modems.
+- **Sensors**: Support for HX711 (Weight) and BME280 (Temp/Hum/Pres).
+- **Backend**: Cellular data transmission to Beelogger.php compatible servers.
+- **Feature**: Initial "Work-on-Hive" mode with Web Interface.
 
-## 📦 Deployment (PlatformIO)
-Select your board environment in `platformio.ini` (e.g., `default_envs = T-A7670X`) and upload the firmware.
+## Credits
+Based on the LilyGo Modem Series examples and enhanced for professional beehive monitoring.

@@ -6,6 +6,12 @@
 
 // Define Wakeup Source for ESP32
 RTC_DATA_ATTR int bootCount = 0;
+RTC_DATA_ATTR uint32_t lastOTACheckTimestamp = 0;
+
+volatile bool buttonInterruptFired = false;
+void IRAM_ATTR handleButtonInterrupt() {
+    buttonInterruptFired = true;
+}
 
 void print_wakeup_reason() {
   esp_sleep_wakeup_cause_t wakeup_reason = esp_sleep_get_wakeup_cause();
@@ -27,7 +33,7 @@ void setup() {
 
     // Print App Version
     Serial.println("\n----------------------------------");
-    Serial.print("BEELOGGER PRO | Firmware: ");
+    Serial.print("BEELOGGER ESP32 | Firmware: ");
     Serial.println(APP_VERSION);
     Serial.println("----------------------------------");
 
@@ -39,7 +45,7 @@ void setup() {
 
     delay(900); 
 
-    // Initialisiere NVS Flash (required for calibration storage)
+    // Initialize NVS Flash (required for calibration storage)
     esp_err_t err = nvs_flash_init();
     if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
         ESP_ERROR_CHECK(nvs_flash_erase());
@@ -49,6 +55,17 @@ void setup() {
     
     bootCount++;
     Serial.println("Boot number: " + String(bootCount));
+    
+    // Check if woken up by Button (GPIO0)
+    if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_EXT0) {
+        workModeActive = true;
+        Serial.println("\n>>> WORK-ON-HIVE MODE ACTIVATED BY BUTTON <<<");
+    }
+    
+    // Attach interrupt immediately so button presses during the 30s modem init are caught
+    pinMode(GPIO0_PIN, INPUT_PULLUP);
+    attachInterrupt(digitalPinToInterrupt(GPIO0_PIN), handleButtonInterrupt, FALLING);
+    
     print_wakeup_reason();
 
 #if ENABLE_CALIBRATION_MODE
@@ -63,8 +80,13 @@ void setup() {
     setupSensors();
     delay(500); // Stabilization
 
-#if ENABLE_DEBUG_WEB
-    startDebugWebServer();
+#if ENABLE_WORK_ON_HIVE_WEB
+    bool shouldStartWifi = workModeActive || (WIFI_NORMAL_AWAKE_SEC > 0);
+    if (shouldStartWifi) {
+        activeTimeout = workModeActive ? (WORK_MODE_TIMEOUT_MIN * 60) : WIFI_NORMAL_AWAKE_SEC;
+        awakeTimerStart = millis(); // Initialize early so the UI knows
+        startWorkModeWebServer();
+    }
 #endif
 
     Serial.println("Reading data from sensors...");
@@ -80,9 +102,14 @@ void setup() {
                      "&VS=" + String(currentSolarVoltage, 2);
 
     float checkSumVal = currentTemperature + currentHumidity + currentPressure + currentWeight + currentBatteryVoltage + currentSolarVoltage;
-    int checkInt = (int)round(checkSumVal + 0.5);
-    payload += "&C=" + String(checkInt);
-    payload += "&PW=" + String("beelogger"); 
+    payload += "&C=" + String((int)round(checkSumVal + 0.5));
+    payload += "&PW=beelogger";
+
+    // Set payload to sysStatus so Web UI can display it even if network fails
+    payload.replace("nan", "0.00");
+    sysStatus.last_payload = payload;
+    sysStatus.last_payload_time = millis();
+    sysStatus.last_server_response = "";
 
     Serial.println("--- Payload Preview ---");
     Serial.printf(" Temp: %.1f C, Hum: %.1f %%, Pres: %.1f hPa\n", currentTemperature, currentHumidity, currentPressure);
@@ -91,37 +118,87 @@ void setup() {
     Serial.println("------------------------");
 
     // 2. Initialize Modem and Send Data
-    Serial.println("Switching on Modem...");
-    setupModem();
+    // SKIP this if we are in Work-on-Hive mode to save time and battery
+    if (!workModeActive) {
+        Serial.println("Switching on Modem...");
+        setupModem();
 
-    if (connectNetwork()) {
-        postData(payload);
+        if (connectNetwork()) {
+            postData(payload);
+        } else {
+            Serial.println("Network failure. Skipping data transmission.");
+        }
+
+        // 3. Power Down Modem
+        if (sysStatus.server_connected) {
+            checkAndPerformAutoOTA();
+        }
+        powerDownModem();
     } else {
-        Serial.println("Network failure. Skipping data transmission.");
+        Serial.println(">>> Work-Mode: Skipping initial cellular upload to launch WebServer immediately.");
     }
 
-    // 3. Power Down Modem
-    powerDownModem();
-
-#if ENABLE_DEBUG_WEB
-    Serial.printf("Debug Web UI active. Waiting %d seconds before sleep...\n", ACTIVE_AWAKE_TIMEOUT_SEC);
-    awakeTimerStart = millis();
-    while (millis() - awakeTimerStart < (ACTIVE_AWAKE_TIMEOUT_SEC * 1000ULL)) {
-        // Handle commands from the asynchronous web server
-        handleWebCommands();
+#if ENABLE_WORK_ON_HIVE_WEB
+    // Check if button was pressed during the 30-sec blocking setup
+    if (buttonInterruptFired) {
+        Serial.println(">>> Button pressed during boot! Upgrading to Work-on-Hive Mode.");
+        workModeActive = true;
         
-        // If "Stay Awake" is toggled on via UI, reset timer
-        if (stayAwake) {
-            awakeTimerStart = millis(); 
+        if (!shouldStartWifi) {
+            shouldStartWifi = true;
+            activeTimeout = WORK_MODE_TIMEOUT_MIN * 60;
+            awakeTimerStart = millis();
+            startWorkModeWebServer();
+        } else {
+            // Already started, so just upgrade timeout
+            activeTimeout = WORK_MODE_TIMEOUT_MIN * 60;
+            awakeTimerStart = millis();
+        }
+    }
+
+    if (shouldStartWifi) {
+        // Only override if not already upgraded by the interrupt
+        if (!buttonInterruptFired) {
+            activeTimeout = workModeActive ? (WORK_MODE_TIMEOUT_MIN * 60) : WIFI_NORMAL_AWAKE_SEC;
         }
         
-        delay(100);
+        if (activeTimeout > 0) {
+            Serial.printf("Work-on-Hive Interface active. Waiting %d seconds before sleep...\n", activeTimeout);
+            // awakeTimerStart is already running since web UI startup, but we can reset or keep it
+            while (millis() - awakeTimerStart < (activeTimeout * 1000ULL)) {
+                // Handle commands from the asynchronous web server
+                handleWebCommands();
+                
+                // If "Stay Awake" is toggled on via UI, reset timer
+                if (stayAwake) {
+                    awakeTimerStart = millis(); 
+                }
+
+                // Check if GPIO0 is pressed during active mode -> extend session to full 5 minutes
+                if (digitalRead(GPIO0_PIN) == LOW) {
+                    static unsigned long lastBtn = 0;
+                    if (millis() - lastBtn > 500) {
+                        Serial.println(">>> Button pressed: Extending maintenance session to 5 minutes...");
+                        activeTimeout = WORK_MODE_TIMEOUT_MIN * 60;
+                        workModeActive = true; // Mark as active if it wasn't already
+                        awakeTimerStart = millis();
+                        lastBtn = millis();
+                    }
+                }
+                
+                delay(100);
+            }
+        }
     }
 #endif
 
     // 4. Enter Deep Sleep
     uint64_t timeToSleep = (uint64_t)DEEP_SLEEP_MINUTES * 60 * uS_TO_S_FACTOR;
     Serial.printf("System entering deep sleep for %d minutes...\n", DEEP_SLEEP_MINUTES);
+    
+    // Enable Wakeup by Button (GPIO0)
+    esp_sleep_enable_ext0_wakeup((gpio_num_t)GPIO0_PIN, 0); // Wakeup when button is pressed (LOW)
+    
     esp_sleep_enable_timer_wakeup(timeToSleep);
     Serial.flush(); 
     powerDownSensors();

@@ -130,8 +130,8 @@ void calibrateHX711() {
     Serial.print("Calculated Zero Factor (Offset): ");
     Serial.println(newOffset);
 
-    Serial.println("\n1. Place a KNOWN weight (e.g., 1000g) on the scale.");
-    Serial.println("2. Enter the weight in grams (e.g., 500) and press Enter...");
+    Serial.println("\n1. Place a KNOWN weight (e.g., 5.0kg) on the scale.");
+    Serial.println("2. Enter the weight in kilograms (e.g., 10.5) and press Enter...");
 
     String input = "";
     while (true) {
